@@ -1,33 +1,30 @@
-const fs = require("fs");
-const pdfParse = require("pdf-parse");
-const pool = require("../db/db");
-const { analyzeResume } = require("../services/analysisService");
+const { extractTextFromPDF, analyzeResume } = require("../services/analysisService");
 
-const uploadResume = async (req, res) => {
+const analyzeResumeHandler = async (req, res) => {
   try {
-    const file = req.file;
-    if (!file) return res.status(400).json({ error: "No file uploaded" });
+    const contentType = req.headers["content-type"];
 
-    const pdfBuffer = fs.readFileSync(file.path);
-    const pdfText = (await pdfParse(pdfBuffer)).text;
+    if (contentType !== "application/pdf") {
+      return res.status(400).json({ error: "Only PDF files are accepted" });
+    }
 
-    const analysis = await analyzeResume(pdfText);
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
 
-    await pool.query(
-      "INSERT INTO resumes (filename, content, analysis) VALUES ($1, $2, $3)",
-      [file.originalname, pdfText, JSON.stringify(analysis)]
-    );
+    req.on("end", async () => {
+      const pdfBuffer = Buffer.concat(chunks);
 
-    fs.unlinkSync(file.path); // Clean up
+      const resumeText = await extractTextFromPDF(pdfBuffer);
+      const analysis = await analyzeResume(resumeText);
 
-    res.status(200).json({
-      message: "Resume uploaded & analyzed successfully",
-      analysis,
+      res.json(analysis);
     });
-  } catch (err) {
-    console.error("❌ Error in uploadResume:", err);
-    res.status(500).json({ error: "Server error" });
+  } catch (error) {
+    console.error("Resume analysis error:", error.message);
+    res.status(500).json({ error: "Resume analysis failed" });
   }
 };
 
-module.exports = { uploadResume };
+module.exports = {
+  analyzeResumeHandler,
+};
