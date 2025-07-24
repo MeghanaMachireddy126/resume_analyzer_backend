@@ -1,3 +1,14 @@
-# .gitignore
+# Ignore environment variable files
 .env
+.env.local
+.env.*.local
+
+# Ignore node_modules
 node_modules/
+
+# Ignore log files
+*.log
+
+# Ignore system files
+.DS_Store
+Thumbs.db
